@@ -1,0 +1,19 @@
+{
+  "name": "hypernet-vacancies",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "dotenv": "^17.0.1",
+    "mongodb": "^6.17.0",
+    "netlify": "^22.2.1",
+    "nodemailer": "^7.0.4"
+  }
+}

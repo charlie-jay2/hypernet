@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hypernet Vacancies Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+</head>
+<body class="container py-4">
+
+  <h1>Hypernet Vacancies Admin Panel</h1>
+
+  <!-- Vacancies Section -->
+  <section id="vacancies-section">
+    <h2>Vacancies</h2>
+
+    <!-- Vacancy Creation Form -->
+    <form id="create-vacancy-form" class="mb-4">
+      <input class="form-control my-2" type="text" name="title" placeholder="Job Title" required />
+      <textarea class="form-control my-2" name="description" placeholder="Job Description" rows="4" required></textarea>
+      <input class="form-control my-2" type="date" name="deadline" required />
+      <button type="submit" class="btn btn-success">Create Vacancy</button>
+      <div id="create-vacancy-msg" class="my-2"></div>
+    </form>
+
+    <!-- You can add existing vacancies list/table here -->
+  </section>
+
+  <!-- Applications Section -->
+  <h2 class="mt-5">Applications</h2>
+  <div id="applications-section">
+    <table class="table table-striped" id="applications-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Vacancy</th>
+          <th>Applied At</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Filled dynamically -->
+      </tbody>
+    </table>
+
+    <!-- Modal for viewing application -->
+    <div class="modal fade" id="applicationModal" tabindex="-1" aria-labelledby="applicationModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="applicationModalLabel">Application Details</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p><strong>Name:</strong> <span id="applicant-name"></span></p>
+            <p><strong>Email:</strong> <span id="applicant-email"></span></p>
+            <p><strong>Vacancy:</strong> <span id="applicant-vacancy"></span></p>
+            <p><strong>Discord Username:</strong> <span id="applicant-discordUsername"></span></p>
+            <p><strong>Discord ID:</strong> <span id="applicant-discordId"></span></p>
+            <p><strong>Age:</strong> <span id="applicant-age"></span></p>
+            <p><strong>Reason for Applying:</strong></p>
+            <p id="applicant-reason" style="white-space: pre-wrap; background:#f8f9fa; padding:1rem; border-radius:5px;"></p>
+            <p><strong>Suitability:</strong></p>
+            <p id="applicant-suitability" style="white-space: pre-wrap; background:#f8f9fa; padding:1rem; border-radius:5px;"></p>
+            <p><strong>Contribution:</strong></p>
+            <p id="applicant-contribution" style="white-space: pre-wrap; background:#f8f9fa; padding:1rem; border-radius:5px;"></p>
+
+            <div class="mt-3">
+              <label for="preset-email" class="form-label">Send Preset Email:</label>
+              <select id="preset-email" class="form-select">
+                <option value="">-- Select an email --</option>
+                <option value="accepted">Accepted</option>
+                <option value="denied">Denied</option>
+              </select>
+              <button id="send-email-btn" class="btn btn-primary mt-2">Send Email</button>
+              <div id="email-status" class="mt-2"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    async function fetchApplications() {
+      const res = await fetch('/.netlify/functions/getApplications');
+      const applications = await res.json();
+      const vacanciesRes = await fetch('/.netlify/functions/getVacancies');
+      const vacancies = await vacanciesRes.json();
+
+      const tbody = document.querySelector('#applications-table tbody');
+      tbody.innerHTML = '';
+
+      applications.forEach(app => {
+        const vacancy = vacancies.find(v => v._id === app.vacancyId);
+        const tr = document.createElement('tr');
+
+        tr.innerHTML = `
+          <td>${app.name || '(No name)'}</td>
+          <td>${app.email || '(No email)'}</td>
+          <td>${vacancy ? vacancy.title : 'Unknown'}</td>
+          <td>${new Date(app.appliedAt).toLocaleString()}</td>
+          <td>
+            <button class="btn btn-sm btn-info view-application-btn" data-app='${JSON.stringify(app)}' data-vacancy='${vacancy ? vacancy.title : ""}'>View</button>
+          </td>
+        `;
+
+        tbody.appendChild(tr);
+      });
+
+      // Attach click handlers to view buttons
+      document.querySelectorAll('.view-application-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const app = JSON.parse(btn.getAttribute('data-app'));
+          const vacancyTitle = btn.getAttribute('data-vacancy');
+
+          document.getElementById('applicant-name').textContent = app.name || '(No name)';
+          document.getElementById('applicant-email').textContent = app.email || '(No email)';
+          document.getElementById('applicant-vacancy').textContent = vacancyTitle || '(Unknown)';
+
+          document.getElementById('applicant-discordUsername').textContent = app.discordUsername || '(Not provided)';
+          document.getElementById('applicant-discordId').textContent = app.discordId || '(Not provided)';
+          document.getElementById('applicant-age').textContent = app.age !== undefined ? app.age : '(Not provided)';
+          document.getElementById('applicant-reason').textContent = app.reason || '(Not provided)';
+          document.getElementById('applicant-suitability').textContent = app.suitability || '(Not provided)';
+          document.getElementById('applicant-contribution').textContent = app.contribution || '(Not provided)';
+
+          // Store current app info for email sending
+          document.getElementById('send-email-btn').dataset.email = app.email || '';
+          document.getElementById('send-email-btn').dataset.name = app.name || '';
+          document.getElementById('send-email-btn').dataset.vacancy = vacancyTitle || '';
+
+          // Reset email dropdown and status
+          document.getElementById('preset-email').value = '';
+          document.getElementById('email-status').textContent = '';
+
+          // Show modal (Bootstrap 5)
+          const modal = new bootstrap.Modal(document.getElementById('applicationModal'));
+          modal.show();
+        });
+      });
+    }
+
+    document.getElementById('send-email-btn').addEventListener('click', async () => {
+      const preset = document.getElementById('preset-email').value;
+      const email = document.getElementById('send-email-btn').dataset.email;
+      const name = document.getElementById('send-email-btn').dataset.name;
+      const vacancy = document.getElementById('send-email-btn').dataset.vacancy;
+      const statusEl = document.getElementById('email-status');
+
+      if (!preset) {
+        statusEl.textContent = 'Please select an email template.';
+        statusEl.style.color = 'red';
+        return;
+      }
+
+      statusEl.textContent = 'Sending email...';
+      statusEl.style.color = 'black';
+
+      try {
+        const res = await fetch('/.netlify/functions/sendPresetEmail', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({preset, email, name, vacancy})
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          statusEl.textContent = 'Email sent successfully.';
+          statusEl.style.color = 'green';
+        } else {
+          statusEl.textContent = `Error sending email: ${data.error}`;
+          statusEl.style.color = 'red';
+        }
+      } catch (err) {
+        statusEl.textContent = `Error: ${err.message}`;
+        statusEl.style.color = 'red';
+      }
+    });
+
+    // Handle vacancy creation form submit
+    document.getElementById('create-vacancy-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const msgEl = document.getElementById('create-vacancy-msg');
+      msgEl.textContent = '';
+      msgEl.style.color = 'black';
+
+      // Get form values
+      const data = {
+        title: form.title.value.trim(),
+        description: form.description.value.trim(),
+        deadline: form.deadline.value,
+      };
+
+      // Simple validation
+      if (!data.title || !data.description || !data.deadline) {
+        msgEl.textContent = 'Please fill in all fields.';
+        msgEl.style.color = 'red';
+        return;
+      }
+
+      // Ask for admin token once per vacancy creation
+      const adminToken = prompt('Enter admin token to create vacancy:');
+      if (!adminToken) {
+        msgEl.textContent = 'Admin token required.';
+        msgEl.style.color = 'red';
+        return;
+      }
+
+      try {
+        const res = await fetch('/.netlify/functions/createVacancy', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${adminToken}`
+          },
+          body: JSON.stringify(data),
+        });
+
+        const resData = await res.json();
+
+        if (res.ok) {
+          msgEl.textContent = 'Vacancy created successfully.';
+          msgEl.style.color = 'green';
+          form.reset();
+          // Optionally refresh vacancies list here
+        } else {
+          msgEl.textContent = resData.error || 'Error creating vacancy.';
+          msgEl.style.color = 'red';
+        }
+      } catch (err) {
+        msgEl.textContent = 'Error: ' + err.message;
+        msgEl.style.color = 'red';
+      }
+    });
+
+    // Load applications on page load
+    fetchApplications();
+  </script>
+</body>
+</html>
